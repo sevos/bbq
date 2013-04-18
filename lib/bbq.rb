@@ -1,20 +1,16 @@
 require 'pathname'
 
 module Bbq
-  def self.root
-    @root ||= Pathname.new(File.expand_path(File.join(File.dirname(__FILE__), '..')))
-  end
+  class << self
+    def root
+      @root ||= Pathname.new(File.expand_path(File.join(File.dirname(__FILE__), '..')))
+    end
 
-  def self.rails?
-    defined?(::Rails)
-  end
+    def rails?
+      defined?(::Rails)
+    end
 
-  def self.app
-    Capybara.app
-  end
-
-  def self.app=(new_app)
-    Capybara.app=(new_app)
+    attr_accessor :app
   end
 end
 

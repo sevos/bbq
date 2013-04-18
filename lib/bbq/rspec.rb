@@ -1,5 +1,6 @@
+require 'bbq'
+require 'bbq/session'
 require 'rspec/core'
-require 'bbq/test_user'
 require 'capybara/rspec/matchers'
 
 module Bbq
@@ -13,44 +14,50 @@ module Bbq
   end
 
   module RSpecMatchers
-    class TestUserEyes
-      def initialize(negative, *args)
-        @args, @negative = args, negative
+    extend RSpec::Matchers::DSL
+
+    matcher :see do |text|
+      chain :within do |locator|
+        @locator = locator
       end
 
-      def matches?(actual)
-        @negative ? actual.not_see?(*@args) : actual.see?(*@args)
+      match_for_should do |page|
+        if @locator
+          page.within(@locator) do
+            page.see? text
+          end
+        else
+          page.see? text
+        end
       end
 
-      def failure_message_for_should
-        "expected to #{@negative ? negative_description : positive_description}"
+      match_for_should_not do |page|
+        if @locator
+          page.within(@locator) do
+            page.not_see? text
+          end
+        else
+          page.not_see? text
+        end
       end
 
-      def failure_message_for_should_not
-        "expected to #{@negative ? positive_description : negative_description}"
+      failure_message_for_should do |page|
+        body = if @locator
+          page.find(@locator).text
+        else
+          page.body
+        end
+        "expected to see #{text} in #{body}"
       end
 
-      def description
-        @negative ? negative_description : positive_description
+      failure_message_for_should_not do |page|
+        body = if @locator
+          page.find(@locator).text
+        else
+          page.body
+        end
+        "expected not to see #{text} in #{body}"
       end
-
-      protected
-
-      def negative_description
-        "not see any of the following: #{@args.join(', ')}"
-      end
-
-      def positive_description
-        "see all of the following: #{@args.join(', ')}"
-      end
-    end
-
-    def see(*args)
-      TestUserEyes.new(false, *args)
-    end
-
-    def not_see(*args)
-      TestUserEyes.new(true, *args)
     end
   end
 
@@ -60,15 +67,11 @@ module Bbq
     include Bbq::RSpecMatchers
 
     def see!(*args)
-      args.each do |arg|
-        page.should have_content(arg)
-      end
+      see?(*args).should be_true
     end
 
     def not_see!(*args)
-      args.each do |arg|
-        page.should have_no_content(arg)
-      end
+      not_see?(*args).should be_true
     end
   end
 end
@@ -87,4 +90,8 @@ RSpec.configuration.include Bbq::RSpecFeature, :type => :acceptance
 RSpec.configure do |config|
   config.include Capybara::RSpecMatchers, :type => :acceptance
   config.include Bbq::RSpecMatchers, :type => :acceptance
+
+  config.after :each, :type => :acceptance do
+    Bbq::Session.pool.release
+  end
 end

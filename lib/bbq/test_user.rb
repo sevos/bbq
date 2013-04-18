@@ -1,47 +1,33 @@
+require 'bbq'
 require 'capybara/rails' if Bbq.rails?
-require 'capybara/dsl'
-require 'securerandom'
-require 'bbq/util'
+require 'bbq/session'
+require 'bbq/roles'
+require 'bbq/test_user/capybara_dsl'
 require 'bbq/test_user/eyes'
 require 'bbq/test_user/within'
 
 module Bbq
   class TestUser
-    include Capybara::DSL
+    include Bbq::TestUser::CapybaraDsl
     include Bbq::TestUser::Eyes
     include Bbq::TestUser::Within
+    include Bbq::Roles
 
     attr_reader :options
 
     def initialize(options = {})
-      @session_name = options.delete(:session_name)
-      @current_driver = options.delete(:driver)
-      @options = options
+      @options = default_options.merge(options)
+    end
+
+    def default_options
+      {
+        :pool => Bbq::Session.pool,
+        :driver => ::Capybara.default_driver
+      }
     end
 
     def page
-      Capybara.using_driver(current_driver) do
-        Capybara.using_session(session_name) do
-          Capybara.current_session
-        end
-      end
-    end
-
-    # Discuss: Shall we freeze ?
-    def session_name
-      @session_name ||= SecureRandom.hex(8)
-    end
-
-    # Discuss: Shall we freeze ?
-    def current_driver
-      @current_driver
-    end
-
-    def roles(*names)
-      names.each do |name|
-        module_obj = Bbq::Util.find_module(name, self)
-        self.extend(module_obj)
-      end
+      @page ||= options[:session] || Bbq::Session.next(:driver => options[:driver], :pool => options[:pool])
     end
   end
 end
